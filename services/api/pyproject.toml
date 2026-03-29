@@ -1,0 +1,15 @@
+[project]
+name = "pulse-ops-backend"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.14"
+dependencies = [
+    "channels-redis>=4.3.0",
+    "channels[types]>=4.3.2",
+    "django>=6.0.3",
+    "django-modern-rest[jwt,msgspec,pydantic]>=0.3.0",
+    "django-stubs>=6.0.1",
+    "gunicorn>=25.3.0",
+    "psycopg[binary]>=3.3.3",
+    "uvicorn>=0.42.0",
+]
