@@ -1,0 +1,63 @@
+services:
+  api:
+    container_name: pulse_ops_api
+    build:
+      context: ../services/api
+      dockerfile: ../../deploy/Dockerfile
+    command: "gunicorn config.asgi:application -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --workers 2"
+    env_file:
+      - ../.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - static_files:/app/staticfiles
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    container_name: pulse_ops_db
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-pulseops}
+      POSTGRES_USER: ${DATABASE_USER:-pulseops}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-pulseops}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+  nginx:
+    container_name: pulse_ops_nginx
+    build: ../nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - static_files:/app/staticfiles
+    depends_on:
+      - api
+
+  redis:
+    container_name: pulse_ops_redis
+    image: redis:latest
+    restart: unless-stopped
+    command:
+      - redis-server
+
+  nats:
+    container_name: pulse_ops_nats
+    image: nats:latest
+    entrypoint: /nats-server
+    command: "-c /config/server.conf"
+    restart: unless-stopped
+    ports:
+      - "4222:4222"
+    volumes:
+      - ../nats/data:/data
+      - ../nats/config/server.conf:/config/server.conf
+
+volumes:
+  postgres_data:
+  static_files:
