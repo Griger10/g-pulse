@@ -7,7 +7,7 @@ dependencies = [
     "channels-redis>=4.3.0",
     "channels[types]>=4.3.2",
     "django>=6.0.3",
-    "django-modern-rest[jwt,msgspec,pydantic]>=0.3.0",
+    "django-modern-rest[jwt,msgspec,pydantic]==0.4.0",
     "django-stubs>=6.0.1",
     "gunicorn>=25.3.0",
     "psycopg[binary]>=3.3.3",

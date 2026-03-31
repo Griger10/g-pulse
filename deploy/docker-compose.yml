@@ -1,3 +1,4 @@
+name: pulse_ops
 services:
   api:
     container_name: pulse_ops_api
