@@ -10,7 +10,7 @@ from apps.accounts.models import User
 class UserCreate(BaseModel):
     email: EmailStr
     username: str | None = None
-    password: SecretStr
+    password: str
 
 
 class UserResponse(BaseModel):
@@ -25,7 +25,7 @@ class UserLogin(TypedDict):
 
 
 class UserRefresh(BaseModel):
-    token: str
+    refresh_token: str
 
 
 class UserInfoRequest(msgspec.Struct):
@@ -49,3 +49,7 @@ class MeResponse(BaseModel):
     email: EmailStr
     telegram_chat_id: int | None
     webhook_url: str | None
+
+
+class AccessTokenResponse(BaseModel):
+    access_token: str

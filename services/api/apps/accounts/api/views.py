@@ -21,6 +21,7 @@ from apps.accounts.api.schemas import (
     AuthenticatedHttpRequest,
     UserUpdate,
     MeResponse,
+    AccessTokenResponse,
 )
 from apps.accounts.models import User
 from config import settings
@@ -39,11 +40,11 @@ class RegisterController(Controller[PydanticSerializer]):
                 parsed_body.username if parsed_body.username else parsed_body.email
             ),
             email=parsed_body.email,
-            password=parsed_body.password.get_secret_value(),
+            password=parsed_body.password,
         )
         return self.to_response(
             UserResponse(
-                uid=user.id,
+                uid=str(user.id),
                 username=parsed_body.username,
                 email=parsed_body.email,
             ),
@@ -90,10 +91,18 @@ class LoginController(
 
 
 class RefreshController(Controller[PydanticSerializer]):
+
+    @validate(
+        ResponseSpec(
+            AccessTokenResponse,
+            status_code=HTTPStatus.OK,
+        ),
+        ResponseSpec(dict, status_code=HTTPStatus.UNAUTHORIZED),
+    )
     async def post(self, parsed_body: Body[UserRefresh]) -> HttpResponse:
         try:
             payload = jwt.decode(
-                parsed_body.token,
+                parsed_body.refresh_token,
                 settings.SECRET_KEY,
                 algorithms=["HS256"],
             )
@@ -108,7 +117,8 @@ class RefreshController(Controller[PydanticSerializer]):
                 status_code=HTTPStatus.UNAUTHORIZED,
             )
 
-        if payload.get("token_type") != "refresh":
+        extras = payload.get("extras", {})
+        if extras.get("type") != "refresh":
             return self.to_response(
                 {"error": "Not a refresh token"},
                 status_code=HTTPStatus.UNAUTHORIZED,
@@ -129,7 +139,7 @@ class RefreshController(Controller[PydanticSerializer]):
         )
 
         return self.to_response(
-            {"access_token": access_token},
+            AccessTokenResponse(access_token=access_token),
             status_code=HTTPStatus.OK,
         )
 
@@ -138,15 +148,30 @@ class MeController(Controller[PydanticSerializer]):
     request: AuthenticatedHttpRequest
     auth = (JWTAsyncAuth(),)
 
+    @validate(
+        ResponseSpec(
+            MeResponse,
+            status_code=HTTPStatus.OK,
+        )
+    )
     async def get(self) -> HttpResponse:
+        db_user = await User.objects.aget(id=self.request.user.id)
         return self.to_response(
-            UserResponse(
-                uid=self.request.user.id,
+            MeResponse(
+                uid=str(self.request.user.id),
                 username=self.request.user.username,
                 email=self.request.user.email,
+                webhook_url=db_user.webhook_url,
+                telegram_chat_id=db_user.telegram_chat_id,
             )
         )
 
+    @validate(
+        ResponseSpec(
+            MeResponse,
+            status_code=HTTPStatus.OK,
+        )
+    )
     async def patch(self, parsed_body: Body[UserUpdate]) -> HttpResponse:
         update_data = {
             field: value
@@ -160,7 +185,7 @@ class MeController(Controller[PydanticSerializer]):
         user = await User.objects.aget(id=self.request.user.id)
         return self.to_response(
             MeResponse(
-                uid=user.id,
+                uid=str(user.id),
                 username=user.username,
                 email=user.email,
                 telegram_chat_id=user.telegram_chat_id,
