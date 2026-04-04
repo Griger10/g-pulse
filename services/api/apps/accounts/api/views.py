@@ -2,16 +2,26 @@ from datetime import datetime, timezone, timedelta
 from http import HTTPStatus
 from typing import override
 
+import jwt
 from django.http import HttpResponse
 from dmr import Controller, Body, validate, ResponseSpec
 from dmr.plugins.pydantic import PydanticSerializer
+from dmr.security.jwt import JWTAsyncAuth
 from dmr.security.jwt.views import (
     ObtainTokensAsyncController,
     ObtainTokensPayload,
     ObtainTokensResponse,
 )
 
-from apps.accounts.api.schemas import UserLogin, UserResponse, UserCreate
+from apps.accounts.api.schemas import (
+    UserLogin,
+    UserResponse,
+    UserCreate,
+    UserRefresh,
+    AuthenticatedHttpRequest,
+    UserUpdate,
+    MeResponse,
+)
 from apps.accounts.models import User
 from config import settings
 
@@ -54,8 +64,8 @@ class LoginController(
         payload: UserLogin,
     ) -> ObtainTokensPayload:
         return ObtainTokensPayload(
-            username=payload.email,
-            password=payload.password,
+            username=payload["username"],
+            password=payload["password"],
         )
 
     @override
@@ -77,3 +87,83 @@ class LoginController(
                 token_type="refresh",
             ),
         }
+
+
+class RefreshController(Controller[PydanticSerializer]):
+    async def post(self, parsed_body: Body[UserRefresh]) -> HttpResponse:
+        try:
+            payload = jwt.decode(
+                parsed_body.token,
+                settings.SECRET_KEY,
+                algorithms=["HS256"],
+            )
+        except jwt.ExpiredSignatureError:
+            return self.to_response(
+                {"error": "Refresh token expired"},
+                status_code=HTTPStatus.UNAUTHORIZED,
+            )
+        except jwt.InvalidTokenError:
+            return self.to_response(
+                {"error": "Invalid refresh token"},
+                status_code=HTTPStatus.UNAUTHORIZED,
+            )
+
+        if payload.get("token_type") != "refresh":
+            return self.to_response(
+                {"error": "Not a refresh token"},
+                status_code=HTTPStatus.UNAUTHORIZED,
+            )
+
+        now = datetime.now(timezone.utc)
+        access_token = jwt.encode(
+            {
+                "sub": payload["sub"],
+                "exp": now
+                + timedelta(
+                    minutes=settings.JWT_ACCESS_TOKEN_LIFETIME_MINUTES,
+                ),
+                "token_type": "access",
+            },
+            settings.SECRET_KEY,
+            algorithm="HS256",
+        )
+
+        return self.to_response(
+            {"access_token": access_token},
+            status_code=HTTPStatus.OK,
+        )
+
+
+class MeController(Controller[PydanticSerializer]):
+    request: AuthenticatedHttpRequest
+    auth = (JWTAsyncAuth(),)
+
+    async def get(self) -> HttpResponse:
+        return self.to_response(
+            UserResponse(
+                uid=self.request.user.id,
+                username=self.request.user.username,
+                email=self.request.user.email,
+            )
+        )
+
+    async def patch(self, parsed_body: Body[UserUpdate]) -> HttpResponse:
+        update_data = {
+            field: value
+            for field, value in parsed_body.model_dump().items()
+            if value is not None
+        }
+
+        if update_data:
+            await User.objects.filter(id=self.request.user.id).aupdate(**update_data)
+
+        user = await User.objects.aget(id=self.request.user.id)
+        return self.to_response(
+            MeResponse(
+                uid=user.id,
+                username=user.username,
+                email=user.email,
+                telegram_chat_id=user.telegram_chat_id,
+                webhook_url=user.webhook_url,
+            )
+        )
