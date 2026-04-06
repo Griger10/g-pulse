@@ -10,11 +10,11 @@ from apps.accounts.models import User
 class UserCreate(BaseModel):
     email: EmailStr
     username: str | None = None
-    password: str
+    password: SecretStr
 
 
 class UserResponse(BaseModel):
-    uid: str
+    id: str
     username: str
     email: EmailStr
 
@@ -26,10 +26,6 @@ class UserLogin(TypedDict):
 
 class UserRefresh(BaseModel):
     refresh_token: str
-
-
-class UserInfoRequest(msgspec.Struct):
-    uid: str
 
 
 class AuthenticatedHttpRequest(HttpRequest):
@@ -44,7 +40,7 @@ class UserUpdate(BaseModel):
 
 
 class MeResponse(BaseModel):
-    uid: str
+    id: str
     username: str
     email: EmailStr
     telegram_chat_id: int | None

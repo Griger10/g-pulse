@@ -40,11 +40,11 @@ class RegisterController(Controller[PydanticSerializer]):
                 parsed_body.username if parsed_body.username else parsed_body.email
             ),
             email=parsed_body.email,
-            password=parsed_body.password,
+            password=parsed_body.password.get_secret_value(),
         )
         return self.to_response(
             UserResponse(
-                uid=str(user.id),
+                id=str(user.id),
                 username=parsed_body.username,
                 email=parsed_body.email,
             ),
@@ -158,7 +158,7 @@ class MeController(Controller[PydanticSerializer]):
         db_user = await User.objects.aget(id=self.request.user.id)
         return self.to_response(
             MeResponse(
-                uid=str(self.request.user.id),
+                id=str(self.request.user.id),
                 username=self.request.user.username,
                 email=self.request.user.email,
                 webhook_url=db_user.webhook_url,
@@ -185,7 +185,7 @@ class MeController(Controller[PydanticSerializer]):
         user = await User.objects.aget(id=self.request.user.id)
         return self.to_response(
             MeResponse(
-                uid=str(user.id),
+                id=str(user.id),
                 username=user.username,
                 email=user.email,
                 telegram_chat_id=user.telegram_chat_id,
