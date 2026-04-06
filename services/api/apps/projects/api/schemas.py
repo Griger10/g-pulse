@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 class ProjectInfo(BaseModel):
     id: str
+    owner_id: str
     name: str
     slug: str
     description: str
@@ -18,9 +19,50 @@ class ProjectInfoCreate(BaseModel):
     description: str | None
 
 
-class ProjectsResponse(BaseModel):
-    projects: list[ProjectInfo]
+class ProjectInfoUpdate(BaseModel):
+    name: str = None
+    description: str | None = None
 
 
-class ProjectDetailsPath(TypedDict):
+class ProjectSlugPath(TypedDict):
     slug: Annotated[str, Field(min_length=1)]
+
+
+class ServiceInfo(BaseModel):
+    id: str
+    name: str
+    url: str
+    service_type: str
+    check_interval: int = Field(gt=0)
+    expected_status_code: int = Field(gt=0)
+    current_status: str
+    timeout: int = Field(gt=0)
+    is_active: bool
+
+    created_at: datetime
+    updated_at: datetime
+
+
+class ServiceInfoCreate(BaseModel):
+    name: str
+    url: str
+    service_type: str
+    check_interval: int = Field(gt=0)
+    expected_status_code: int = Field(gt=0)
+    timeout: int = Field(gt=0)
+    is_active: bool
+
+
+class ServiceInfoUpdate(BaseModel):
+    name: str | None = None
+    url: str | None = None
+    service_type: str | None = None
+    check_interval: int | None = Field(gt=0, default=None)
+    expected_status_code: int | None = Field(gt=0, default=None)
+    current_status: str | None = None
+    timeout: int | None = Field(gt=0, default=None)
+    is_active: bool | None = None
+
+
+class ServiceIdPath(TypedDict):
+    id: Annotated[str, Field(min_length=1)]
