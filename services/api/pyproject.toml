@@ -6,10 +6,11 @@ requires-python = ">=3.14"
 dependencies = [
     "channels-redis>=4.3.0",
     "channels[types]>=4.3.2",
-    "django>=6.0.3",
+    "django==6.0.4",
     "django-modern-rest[jwt,msgspec,pydantic]==0.5.0",
     "django-stubs==6.0.2",
     "gunicorn>=25.3.0",
+    "httpx>=0.28.1",
     "psycopg[binary]>=3.3.3",
     "python-slugify>=8.0.4",
     "uvicorn==0.44.0",
