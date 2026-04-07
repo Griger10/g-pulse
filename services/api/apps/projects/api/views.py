@@ -316,3 +316,62 @@ class ServiceDetailsController(Controller[PydanticSerializer]):
 
         await service.adelete()
         return self.to_response({"message": "Successfully deleted service"})
+
+
+class ServiceCheckController(Controller[PydanticSerializer]):
+    request: AuthenticatedHttpRequest
+    auth = (JWTAsyncAuth(),)
+
+    async def post(self, parsed_path: Path[ServiceIdPath]) -> HttpResponse:
+        service = await Service.objects.aget(
+            id=parsed_path["id"],
+            project__owner=self.request.user,
+        )
+
+        import httpx
+        import time
+
+        start = time.monotonic()
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(service.url, timeout=service.timeout)
+
+                elapsed_ms = int((time.monotonic() - start) * 1000)
+
+                result = (
+                    "success"
+                    if response.status_code == service.expected_status_code
+                    else "unexpected_status"
+                )
+
+                return self.to_response(
+                    {
+                        "service_id": str(service.id),
+                        "result": result,
+                        "status_code": response.status_code,
+                        "response_time_ms": elapsed_ms,
+                    }
+                )
+            except httpx.TimeoutException:
+                elapsed_ms = int((time.monotonic() - start) * 1000)
+                return self.to_response(
+                    {
+                        "service_id": str(service.id),
+                        "result": "timeout",
+                        "status_code": None,
+                        "response_time_ms": elapsed_ms,
+                    }
+                )
+
+            except httpx.RequestError as e:
+                elapsed_ms = int((time.monotonic() - start) * 1000)
+                return self.to_response(
+                    {
+                        "service_id": str(service.id),
+                        "result": "error",
+                        "status_code": None,
+                        "response_time_ms": elapsed_ms,
+                        "error_message": str(e),
+                    }
+                )
