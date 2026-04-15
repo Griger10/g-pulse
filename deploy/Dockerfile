@@ -1,4 +1,4 @@
-FROM python:3.14.3-slim AS builder
+FROM python:3.14.4-slim AS builder
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
@@ -17,7 +17,7 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked
 
-FROM python:3.14.3-slim
+FROM python:3.14.4-slim
 
 ENV PYTHONPATH="${PYTHONPATH}:/app/src/"
 ENV PYTHONUNBUFFERED=1
@@ -29,5 +29,3 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 
 COPY . .
-
-RUN python -m django collectstatic --noinput
