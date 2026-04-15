@@ -4,7 +4,7 @@ from http import HTTPStatus
 from django.db.models import Avg, Min, Max, Count, Q
 from django.http import HttpResponse
 from dmr import Controller, validate, ResponseSpec, Path
-from dmr.plugins.pydantic import PydanticSerializer
+from dmr.plugins.pydantic import PydanticFastSerializer
 from dmr.security.jwt import JWTAsyncAuth
 
 from apps.accounts.api.schemas import AuthenticatedHttpRequest
@@ -21,7 +21,7 @@ from apps.monitoring.models import HealthCheck
 from apps.projects.models import Service, Project
 
 
-class HealthChecksController(Controller[PydanticSerializer]):
+class HealthChecksController(Controller[PydanticFastSerializer]):
     request: AuthenticatedHttpRequest
     auth = (JWTAsyncAuth(),)
 
@@ -75,7 +75,7 @@ class HealthChecksController(Controller[PydanticSerializer]):
         )
 
 
-class UptimeController(Controller[PydanticSerializer]):
+class UptimeController(Controller[PydanticFastSerializer]):
 
     request: AuthenticatedHttpRequest
     auth = (JWTAsyncAuth(),)
@@ -132,7 +132,7 @@ class UptimeController(Controller[PydanticSerializer]):
         )
 
 
-class ProjectStatusController(Controller[PydanticSerializer]):
+class ProjectStatusController(Controller[PydanticFastSerializer]):
 
     @validate(
         ResponseSpec(

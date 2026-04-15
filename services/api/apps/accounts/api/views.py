@@ -5,7 +5,7 @@ from typing import override
 import jwt
 from django.http import HttpResponse
 from dmr import Controller, Body, validate, ResponseSpec
-from dmr.plugins.pydantic import PydanticSerializer
+from dmr.plugins.pydantic import PydanticFastSerializer
 from dmr.security.jwt import JWTAsyncAuth
 from dmr.security.jwt.views import (
     ObtainTokensAsyncController,
@@ -27,7 +27,7 @@ from apps.accounts.models import User
 from config import settings
 
 
-class RegisterController(Controller[PydanticSerializer]):
+class RegisterController(Controller[PydanticFastSerializer]):
     @validate(
         ResponseSpec(
             UserResponse,
@@ -54,7 +54,7 @@ class RegisterController(Controller[PydanticSerializer]):
 
 class LoginController(
     ObtainTokensAsyncController[
-        PydanticSerializer,
+        PydanticFastSerializer,
         UserLogin,
         ObtainTokensResponse,
     ],
@@ -90,7 +90,7 @@ class LoginController(
         }
 
 
-class RefreshController(Controller[PydanticSerializer]):
+class RefreshController(Controller[PydanticFastSerializer]):
 
     @validate(
         ResponseSpec(
@@ -144,7 +144,7 @@ class RefreshController(Controller[PydanticSerializer]):
         )
 
 
-class MeController(Controller[PydanticSerializer]):
+class MeController(Controller[PydanticFastSerializer]):
     request: AuthenticatedHttpRequest
     auth = (JWTAsyncAuth(),)
 
@@ -155,12 +155,13 @@ class MeController(Controller[PydanticSerializer]):
         )
     )
     async def get(self) -> HttpResponse:
-        db_user = await User.objects.aget(id=self.request.user.id)
+        user = await self.request.auser()
+        db_user = await User.objects.aget(id=user.id)
         return self.to_response(
             MeResponse(
-                id=str(self.request.user.id),
-                username=self.request.user.username,
-                email=self.request.user.email,
+                id=str(user.id),
+                username=user.username,
+                email=db_user.email,
                 webhook_url=db_user.webhook_url,
                 telegram_chat_id=db_user.telegram_chat_id,
             )

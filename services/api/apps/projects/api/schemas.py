@@ -66,3 +66,10 @@ class ServiceInfoUpdate(BaseModel):
 
 class ServiceIdPath(TypedDict):
     id: Annotated[str, Field(min_length=1)]
+
+
+class ServiceCheckResponse(BaseModel):
+    service_id: str
+    result: str
+    status_code: int = Field(gt=0)
+    elapsed_time: int = Field(gt=0)

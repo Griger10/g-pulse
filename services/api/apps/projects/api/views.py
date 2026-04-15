@@ -1,8 +1,8 @@
 from http import HTTPStatus
 
 from django.http import HttpResponse
-from dmr import Controller, validate, ResponseSpec, Body, Path
-from dmr.plugins.pydantic import PydanticSerializer
+from dmr import Controller, validate, ResponseSpec, Body, Path, modify
+from dmr.plugins.pydantic import PydanticFastSerializer
 from dmr.security.jwt import JWTAsyncAuth
 from slugify import slugify
 
@@ -16,11 +16,12 @@ from apps.projects.api.schemas import (
     ServiceIdPath,
     ProjectInfoUpdate,
     ServiceInfoUpdate,
+    ServiceCheckResponse,
 )
 from apps.projects.models import Project, Service
 
 
-class ProjectsController(Controller[PydanticSerializer]):
+class ProjectsController(Controller[PydanticFastSerializer]):
     request: AuthenticatedHttpRequest
     auth = (JWTAsyncAuth(),)
 
@@ -31,18 +32,21 @@ class ProjectsController(Controller[PydanticSerializer]):
         )
     )
     async def get(self) -> HttpResponse:
-        return self.to_response(
-            ProjectInfo(
-                id=str(project.id),
-                owner_id=str(project.owner.id),
-                name=project.name,
-                slug=project.slug,
-                description=project.description,
-                created_at=project.created_at,
-                updated_at=project.updated_at,
+        user = await self.request.auser()
+        projects = []
+        async for project in Project.objects.filter(owner=user):
+            projects.append(
+                ProjectInfo(
+                    id=str(project.id),
+                    owner_id=str(user.id),
+                    name=project.name,
+                    slug=project.slug,
+                    description=project.description,
+                    created_at=project.created_at,
+                    updated_at=project.updated_at,
+                )
             )
-            async for project in Project.objects.filter(owner=self.request.user)
-        )
+        return self.to_response(projects)
 
     @validate(
         ResponseSpec(
@@ -52,11 +56,12 @@ class ProjectsController(Controller[PydanticSerializer]):
     )
     async def post(self, parsed_body: Body[ProjectInfoCreate]) -> HttpResponse:
         slug = slugify(parsed_body.name)
+        user = await self.request.auser()
         project = await Project.objects.acreate(
             name=parsed_body.name,
             slug=slug,
             description=parsed_body.description,
-            owner=self.request.user,
+            owner=user,
         )
 
         return self.to_response(
@@ -72,7 +77,7 @@ class ProjectsController(Controller[PydanticSerializer]):
         )
 
 
-class ProjectDetailsController(Controller[PydanticSerializer]):
+class ProjectDetailsController(Controller[PydanticFastSerializer]):
     request: AuthenticatedHttpRequest
     auth = (JWTAsyncAuth(),)
 
@@ -83,15 +88,16 @@ class ProjectDetailsController(Controller[PydanticSerializer]):
         )
     )
     async def get(self, parsed_path: Path[ProjectSlugPath]) -> HttpResponse:
+        user = await self.request.auser()
         project = await Project.objects.aget(
             slug=parsed_path["slug"],
-            owner=self.request.user,
+            owner=user,
         )
 
         return self.to_response(
             ProjectInfo(
                 id=str(project.id),
-                owner_id=str(project.owner.id),
+                owner_id=str(user.id),
                 name=project.name,
                 slug=project.slug,
                 description=project.description,
@@ -111,9 +117,10 @@ class ProjectDetailsController(Controller[PydanticSerializer]):
         parsed_path: Path[ProjectSlugPath],
         parsed_body: Body[ProjectInfoUpdate],
     ) -> HttpResponse:
+        user = await self.request.auser()
         project = await Project.objects.aget(
             slug=parsed_path["slug"],
-            owner=self.request.user,
+            owner=user,
         )
         update_data = {
             field: value
@@ -122,15 +129,15 @@ class ProjectDetailsController(Controller[PydanticSerializer]):
         }
 
         if update_data:
-            await Project.objects.filter(
-                id=project.id, owner=self.request.user
-            ).aupdate(**update_data)
+            await Project.objects.filter(id=project.id, owner=user).aupdate(
+                **update_data
+            )
             project = await Project.objects.aget(id=project.id)
 
         return self.to_response(
             ProjectInfo(
                 id=str(project.id),
-                owner_id=str(project.owner.id),
+                owner_id=str(user.id),
                 name=project.name,
                 slug=project.slug,
                 description=project.description,
@@ -139,22 +146,18 @@ class ProjectDetailsController(Controller[PydanticSerializer]):
             )
         )
 
-    @validate(
-        ResponseSpec(
-            dict,
-            status_code=HTTPStatus.NO_CONTENT,
-        )
-    )
-    async def delete(self, parsed_path: Path[ProjectSlugPath]) -> HttpResponse:
+    @modify(status_code=HTTPStatus.NO_CONTENT)
+    async def delete(self, parsed_path: Path[ProjectSlugPath]) -> None:
+        user = await self.request.auser()
         project = await Project.objects.aget(
             slug=parsed_path["slug"],
-            owner=self.request.user,
+            owner=user,
         )
         await project.adelete()
-        return self.to_response({"message": "Successfully deleted project"})
+        return None
 
 
-class ServiceController(Controller[PydanticSerializer]):
+class ServiceController(Controller[PydanticFastSerializer]):
     request: AuthenticatedHttpRequest
     auth = (JWTAsyncAuth(),)
 
@@ -197,10 +200,11 @@ class ServiceController(Controller[PydanticSerializer]):
     )
     async def post(
         self, parsed_path: Path[ProjectSlugPath], parsed_body: Body[ServiceInfoCreate]
-    ):
+    ) -> HttpResponse:
+        user = await self.request.auser()
         project = await Project.objects.aget(
             slug=parsed_path["slug"],
-            owner=self.request.user,
+            owner=user,
         )
 
         service = await Service.objects.acreate(
@@ -231,7 +235,7 @@ class ServiceController(Controller[PydanticSerializer]):
         )
 
 
-class ServiceDetailsController(Controller[PydanticSerializer]):
+class ServiceDetailsController(Controller[PydanticFastSerializer]):
     request: AuthenticatedHttpRequest
     auth = (JWTAsyncAuth(),)
 
@@ -241,10 +245,11 @@ class ServiceDetailsController(Controller[PydanticSerializer]):
             status_code=HTTPStatus.OK,
         )
     )
-    async def get(self, parsed_path: Path[ServiceIdPath]):
+    async def get(self, parsed_path: Path[ServiceIdPath]) -> HttpResponse:
+        user = await self.request.auser()
         service = await Service.objects.aget(
             id=parsed_path["id"],
-            project__owner=self.request.user,
+            project__owner=user,
         )
 
         return self.to_response(
@@ -271,20 +276,19 @@ class ServiceDetailsController(Controller[PydanticSerializer]):
     )
     async def patch(
         self, parsed_path: Path[ServiceIdPath], parsed_body: Body[ServiceInfoUpdate]
-    ):
+    ) -> HttpResponse:
+        user = await self.request.auser()
         update_data = {
             field: value
             for field, value in parsed_body.model_dump().items()
             if value is not None
         }
 
-        service = await Service.objects.aget(
-            id=parsed_path["id"], project__owner=self.request.user
-        )
+        service = await Service.objects.aget(id=parsed_path["id"], project__owner=user)
 
         if update_data:
             service = await Service.objects.filter(
-                id=parsed_path["id"], project__owner=self.request.user
+                id=parsed_path["id"], project__owner=user
             ).aupdate(**update_data)
 
         return self.to_response(
@@ -303,25 +307,28 @@ class ServiceDetailsController(Controller[PydanticSerializer]):
             )
         )
 
-    @validate(
-        ResponseSpec(
-            dict,
-            status_code=HTTPStatus.NO_CONTENT,
-        )
-    )
-    async def delete(self, parsed_path: Path[ServiceIdPath]):
+    @modify(status_code=HTTPStatus.NO_CONTENT)
+    async def delete(self, parsed_path: Path[ServiceIdPath]) -> None:
+        user = await self.request.auser()
         service = await Service.objects.aget(
-            id=parsed_path["id"], project__owner=self.request.user
+            id=parsed_path["id"],
+            project__owner=user,
         )
 
         await service.adelete()
-        return self.to_response({"message": "Successfully deleted service"})
+        return None
 
 
-class ServiceCheckController(Controller[PydanticSerializer]):
+class ServiceCheckController(Controller[PydanticFastSerializer]):
     request: AuthenticatedHttpRequest
     auth = (JWTAsyncAuth(),)
 
+    @validate(
+        ResponseSpec(
+            ServiceCheckResponse,
+            status_code=HTTPStatus.OK,
+        )
+    )
     async def post(self, parsed_path: Path[ServiceIdPath]) -> HttpResponse:
         service = await Service.objects.aget(
             id=parsed_path["id"],
@@ -346,32 +353,31 @@ class ServiceCheckController(Controller[PydanticSerializer]):
                 )
 
                 return self.to_response(
-                    {
-                        "service_id": str(service.id),
-                        "result": result,
-                        "status_code": response.status_code,
-                        "response_time_ms": elapsed_ms,
-                    }
+                    ServiceCheckResponse(
+                        service_id=str(service.id),
+                        result=result,
+                        status_code=response.status_code,
+                        elapsed_time=elapsed_ms,
+                    )
                 )
             except httpx.TimeoutException:
                 elapsed_ms = int((time.monotonic() - start) * 1000)
                 return self.to_response(
-                    {
-                        "service_id": str(service.id),
-                        "result": "timeout",
-                        "status_code": None,
-                        "response_time_ms": elapsed_ms,
-                    }
+                    ServiceCheckResponse(
+                        service_id=str(service.id),
+                        result=result,
+                        status_code=response.status_code,
+                        elapsed_time=elapsed_ms,
+                    )
                 )
 
-            except httpx.RequestError as e:
+            except httpx.RequestError:
                 elapsed_ms = int((time.monotonic() - start) * 1000)
                 return self.to_response(
-                    {
-                        "service_id": str(service.id),
-                        "result": "error",
-                        "status_code": None,
-                        "response_time_ms": elapsed_ms,
-                        "error_message": str(e),
-                    }
+                    ServiceCheckResponse(
+                        service_id=str(service.id),
+                        result=result,
+                        status_code=response.status_code,
+                        elapsed_time=elapsed_ms,
+                    )
                 )

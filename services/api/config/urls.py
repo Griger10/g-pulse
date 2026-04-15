@@ -6,6 +6,7 @@ from dmr.plugins.pydantic import PydanticSerializer
 from dmr.routing import Router, build_404_handler, build_500_handler, path
 
 from apps.accounts.api.urls import accounts_router
+from apps.alerts.api.urls import alert_rules_router, alert_management_router
 from apps.monitoring.api.urls import monitoring_router, status_router
 from apps.projects.api.urls import projects_router, service_router
 
@@ -30,7 +31,18 @@ router = Router(
         ),
         path(
             status_router.prefix,
-            include((status_router, "status"), namespace="status"),
+            include((status_router.urls, "status"), namespace="status"),
+        ),
+        path(
+            alert_rules_router.prefix,
+            include((alert_rules_router.urls, "alerts"), namespace="alerts"),
+        ),
+        path(
+            alert_management_router.prefix,
+            include(
+                (alert_management_router.urls, "alert_management"),
+                namespace="alert_management",
+            ),
         ),
     ],
 )

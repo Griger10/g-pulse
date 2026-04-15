@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+from dmr.settings import Settings
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -26,7 +28,9 @@ AUTH_USER_MODEL = "accounts.User"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -68,7 +72,11 @@ CHANNEL_LAYERS = {
 }
 
 
-DMR_SETTINGS = {}
+DMR_SETTINGS = {
+    Settings.openapi_static_cdn: {
+        "swagger": "https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.32.0",
+    },
+}
 
 
 CELERY_BROKER_URL = REDIS_URL
