@@ -1,7 +1,7 @@
-name: pulse_ops
+name: g_pulse
 services:
   api:
-    container_name: pulse_ops_api
+    container_name: g_pulse_api
     build:
       context: ../services/api
       dockerfile: ../../deploy/Dockerfile
@@ -10,14 +10,12 @@ services:
       - ../.env
     ports:
       - "8000:8000"
-    volumes:
-      - static_files:/app/staticfiles
     depends_on:
       - postgres
       - redis
 
   postgres:
-    container_name: pulse_ops_db
+    container_name: g_pulse_db
     image: postgres:18-alpine
     restart: unless-stopped
     environment:
@@ -30,25 +28,23 @@ services:
       - postgres_data:/var/lib/postgresql
 
   nginx:
-    container_name: pulse_ops_nginx
+    container_name: g_pulse_nginx
     build: ../nginx
     restart: unless-stopped
     ports:
       - "80:80"
-    volumes:
-      - static_files:/app/staticfiles
     depends_on:
       - api
 
   redis:
-    container_name: pulse_ops_redis
+    container_name: g_pulse_redis
     image: redis:latest
     restart: unless-stopped
     command:
       - redis-server
 
   nats:
-    container_name: pulse_ops_nats
+    container_name: g_pulse_nats
     image: nats:latest
     entrypoint: /nats-server
     command: "-c /config/server.conf"
@@ -61,4 +57,3 @@ services:
 
 volumes:
   postgres_data:
-  static_files:
